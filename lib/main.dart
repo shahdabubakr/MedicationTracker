@@ -9,11 +9,11 @@ import 'splash_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تشغيل الفايربيز (استبدلي ببياناتك الخاصة)
+  // Initialize Firebase with the configuration
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyCxAD4VF4_DvaXphgzToABdmQssQllqEC0',
-      appId: '1:430415978948:android:55bac4ee4fe08af1794491',
+      appId: '1:430415978948:android:b9d4d8aaa937b445794491',
       messagingSenderId: '430415978948',
       projectId: 'medicationtracker-31883',
       storageBucket: 'medicationtracker-31883.firebasestorage.app',

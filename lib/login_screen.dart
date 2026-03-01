@@ -18,30 +18,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleLogin() async {
     try {
-      // 1. تسجيل الدخول في Auth
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: emailController.text.trim(),
-        password: passController.text.trim(),
-      );
+      // 1. تسجيل الدخول في FirebaseAuth
+      UserCredential credential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+              email: emailController.text.trim(),
+              password: passController.text.trim());
 
-      // 2. سحب البيانات من Firestore
-      var userData = await FirebaseService().getUserData();
+      User? firebaseUser = credential.user;
 
-      if (userData.exists) {
-        UserModel user =
-            UserModel.fromMap(userData.data() as Map<String, dynamic>);
+      if (firebaseUser != null) {
+        // 2. جلب البيانات من Firestore باستخدام UID
+        var userData = await FirebaseService().getUserData();
 
-        // 3. الانتقال للهوم بالبيانات الحقيقية
-        Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-                builder: (context) => HomeScreen(
-                    userName: user.name, birthYear: user.birthYear)));
+        if (userData.exists) {
+          final data = userData.data();
+          if (data is Map<String, dynamic>) {
+            UserModel user = UserModel.fromMap(data);
+
+            // 3. الانتقال للهوم بالبيانات الحقيقية
+            Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) =>
+                        HomeScreen(userName: user.name, birthYear: user.birthYear)));
+          } else {
+            throw Exception("بيانات المستخدم غير صالحة");
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("خطأ في البيانات.. يرجى التسجيل من جديد")),
+          );
+          await FirebaseAuth.instance.signOut();
+        }
       }
     } catch (e) {
+      // رسالة خطأ عامة للمستخدم
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("خطأ في تسجيل الدخول.. تأكد من بياناتك")),
       );
+      print("Login Error: $e");
     }
   }
 
@@ -49,8 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF121212) : const Color(0xFFF8FAFF),
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF8FAFF),
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(30),
@@ -61,8 +75,7 @@ class _LoginScreenState extends State<LoginScreen> {
               _buildInput(emailController, "البريد الإلكتروني",
                   Icons.email_outlined, isDark),
               const SizedBox(height: 20),
-              _buildInput(
-                  passController, "كلمة المرور", Icons.lock_outline, isDark,
+              _buildInput(passController, "كلمة المرور", Icons.lock_outline, isDark,
                   isPass: true),
               const SizedBox(height: 40),
               _buildButton("دخول", _handleLogin),

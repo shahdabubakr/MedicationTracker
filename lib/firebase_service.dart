@@ -13,6 +13,9 @@ class FirebaseService {
 
   // جلب بيانات المستخدم الحالي
   Future<DocumentSnapshot> getUserData() async {
+    if (_auth.currentUser == null) {
+      throw Exception("No user is currently signed in");
+    }
     return await _db.collection('users').doc(_auth.currentUser!.uid).get();
   }
 

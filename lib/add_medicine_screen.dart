@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart'; // للربط مع الأردوينو
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_service.dart';
+// import 'firebase_service.dart';
 import 'notification_service.dart';
 
 class AddMedicineScreen extends StatefulWidget {

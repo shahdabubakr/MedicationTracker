@@ -26,15 +26,19 @@ class NotificationService {
   // دالة جدولة التنبيه
   Future<void> scheduleNotification(
       int id, String title, String timeString) async {
-    // تحويل النص (مثلاً 02:00 PM) لوقت حقيقي
+    // تحويل النص (مثلاً 14:30) لوقت حقيقي
     DateTime now = DateTime.now();
-    DateFormat format = DateFormat.jm(); // ده بيفهم تنسيق الـ AM/PM
-    DateTime scheduledDate = format.parse(timeString);
-
-    // ظبط التاريخ ليكون النهاردة
-    DateTime finalDate = DateTime(
-        now.year, now.month, now.day, scheduledDate.hour, scheduledDate.minute);
-
+      
+    // Parse the time string in HH:mm format
+    List<String> timeParts = timeString.split(':');
+    if (timeParts.length != 2) return;
+      
+    int hour = int.tryParse(timeParts[0]) ?? 0;
+    int minute = int.tryParse(timeParts[1]) ?? 0;
+  
+    //ظبط التاريخ ليكون النهاردة
+    DateTime finalDate = DateTime(now.year, now.month, now.day, hour, minute);
+  
     // لو الوقت فات، نخليه بكرة
     if (finalDate.isBefore(now)) {
       finalDate = finalDate.add(const Duration(days: 1));

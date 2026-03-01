@@ -1,0 +1,56 @@
+{
+  "project_info": {
+    "project_number": "430415978948",
+    "firebase_url": "https://medicationtracker-31883-default-rtdb.firebaseio.com",
+    "project_id": "medicationtracker-31883",
+    "storage_bucket": "medicationtracker-31883.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:430415978948:android:b9d4d8aaa937b445794491",
+        "android_client_info": {
+          "package_name": "com.example.medical_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "430415978948-1lus7hpj09o50cqkngurn94uhgju9gdr.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.medical_app",
+            "certificate_hash": "ec0dee2bddaaa1fbb69d8e9332671896b3874e04"
+          }
+        },
+        {
+          "client_id": "430415978948-d02niqktvso18df3mda9n2eke88v2c3l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.medical_app",
+            "certificate_hash": "c705b7922d88802709acfdb25d3f9cf2a57e7eff"
+          }
+        },
+        {
+          "client_id": "430415978948-01958cnk5sl7167u8m4qejj1784m0a0r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxAD4VF4_DvaXphgzToABdmQssQllqEC0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "430415978948-01958cnk5sl7167u8m4qejj1784m0a0r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
