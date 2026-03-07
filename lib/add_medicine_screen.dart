@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_database/firebase_database.dart'; // للربط مع الأردوينو
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 // import 'firebase_service.dart';
 import 'notification_service.dart';
+import 'app_provider.dart';
 
 class AddMedicineScreen extends StatefulWidget {
   final String? initialName; // الاسم اللي جاي من البحث
@@ -89,128 +91,232 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final appProvider = Provider.of<AppProvider>(context);
+    bool isAr = appProvider.locale.languageCode == 'ar';
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     Color primaryColor = const Color(0xFF4A90E2);
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF121212) : const Color(0xFFF8FAFF),
-      appBar: AppBar(
-        title: Text(
-            widget.initialName != null ? "تأكيد الدواء" : "إضافة دواء جديد"),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          children: [
-            // حقل الاسم
-            _buildTextField(
-              controller: nameController,
-              hint: "اسم الدواء",
-              icon: Icons.medication,
-              isDark: isDark,
-            ),
-            const SizedBox(height: 20),
-
-            // حقل الوصف (الكومنت)
-            _buildTextField(
-              controller: descController,
-              hint: "وصف العلاج أو ملاحظات (اختياري)",
-              icon: Icons.description,
-              isDark: isDark,
-              maxLines: 4,
-            ),
-            const SizedBox(height: 20),
-
-            // اختيار الوقت
-            GestureDetector(
-              onTap: () async {
-                TimeOfDay? picked = await showTimePicker(
-                    context: context, initialTime: selectedTime);
-                if (picked != null) setState(() => selectedTime = picked);
-              },
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white10 : Colors.white,
-                  borderRadius: BorderRadius.circular(15),
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [const Color(0xFF0F172A), const Color(0xFF020617)]
+                : [const Color(0xFFEEF2FF), const Color(0xFFE0F2FE)],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              AppBar(
+                backgroundColor: Colors.transparent,
+                elevation: 0,
+                centerTitle: true,
+                title: Text(
+                  widget.initialName != null
+                      ? (isAr ? "تأكيد الدواء" : "Confirm Medicine")
+                      : (isAr ? "إضافة دواء جديد" : "Add New Medicine"),
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
                 ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.access_time, color: primaryColor),
-                        const SizedBox(width: 15),
-                        const Text("وقت الجرعة",
-                            style: TextStyle(fontSize: 16)),
-                      ],
-                    ),
-                    Text(
-                      selectedTime.format(context),
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: primaryColor),
-                    ),
-                  ],
+                leading: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: isDark ? Colors.white : const Color(0xFF1F2937),
+                    size: 22,
+                  ),
+                  onPressed: () => Navigator.pop(context),
                 ),
               ),
-            ),
-
-            const SizedBox(height: 50),
-
-            // زر الحفظ بتأثير علامة الصح
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isSaving ? Colors.green : primaryColor,
-                minimumSize: const Size(double.infinity, 60),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15)),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 28),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.06)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(24),
+                          border: isDark
+                              ? Border.all(
+                                  color: Colors.white.withValues(alpha: 0.08))
+                              : null,
+                          boxShadow: isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.06),
+                                    blurRadius: 28,
+                                    offset: const Offset(0, 14),
+                                  ),
+                                ],
+                        ),
+                        child: Column(
+                          children: [
+                            _buildTextField(
+                              controller: nameController,
+                              hint: isAr ? "اسم الدواء" : "Medicine name",
+                              icon: Icons.medication_rounded,
+                              isDark: isDark,
+                            ),
+                            const SizedBox(height: 18),
+                            _buildTextField(
+                              controller: descController,
+                              hint: isAr
+                                  ? "وصف العلاج أو ملاحظات (اختياري)"
+                                  : "Treatment notes (optional)",
+                              icon: Icons.description_outlined,
+                              isDark: isDark,
+                              maxLines: 4,
+                            ),
+                            const SizedBox(height: 18),
+                            GestureDetector(
+                              onTap: () async {
+                                TimeOfDay? picked = await showTimePicker(
+                                    context: context, initialTime: selectedTime);
+                                if (picked != null) setState(() => selectedTime = picked);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 18, vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? Colors.white.withValues(alpha: 0.08)
+                                      : const Color(0xFFF8FAFC),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(10),
+                                      decoration: BoxDecoration(
+                                        color: primaryColor.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.schedule_rounded,
+                                        color: primaryColor,
+                                        size: 22,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Text(
+                                      isAr ? "وقت الجرعة" : "Dose time",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: isDark ? Colors.white70 : const Color(0xFF6B7280),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      selectedTime.format(context),
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: primaryColor,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.chevron_right_rounded,
+                                      color: primaryColor,
+                                      size: 24,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      Material(
+                        borderRadius: BorderRadius.circular(18),
+                        shadowColor: primaryColor.withValues(alpha: 0.4),
+                        elevation: 8,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: isSaving ? const Color(0xFF22C55E) : primaryColor,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 58),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            elevation: 0,
+                          ),
+                          onPressed: isSaving ? null : _handleSave,
+                          child: isSaving
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.check_circle_rounded,
+                                        color: Colors.white, size: 24),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      isAr ? "تم الحفظ بنجاح" : "Saved successfully",
+                                      style: const TextStyle(
+                                          color: Colors.white, fontSize: 17),
+                                    ),
+                                  ],
+                                )
+                              : Text(
+                                  isAr ? "حفظ البيانات" : "Save data",
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              onPressed: isSaving ? null : _handleSave,
-              child: isSaving
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.white),
-                        SizedBox(width: 10),
-                        Text("تم الحفظ بنجاح",
-                            style:
-                                TextStyle(color: Colors.white, fontSize: 18)),
-                      ],
-                    )
-                  : const Text("حفظ البيانات",
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTextField(
-      {required TextEditingController controller,
-      required String hint,
-      required IconData icon,
-      required bool isDark,
-      int maxLines = 1}) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required bool isDark,
+    int maxLines = 1,
+  }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: TextStyle(color: isDark ? Colors.white : Colors.black),
+      style: TextStyle(
+        color: isDark ? Colors.white : const Color(0xFF1F2937),
+        fontSize: 16,
+      ),
       decoration: InputDecoration(
         hintText: hint,
-        prefixIcon: Icon(icon, color: const Color(0xFF4A90E2)),
+        hintStyle: TextStyle(
+          color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+        ),
+        prefixIcon: Icon(icon, color: isDark ? Colors.white : const Color(0xFF1F2937), size: 22),
         filled: true,
-        fillColor: isDark ? Colors.white10 : Colors.white,
+        fillColor: isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFF8FAFC),
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(15),
-            borderSide: BorderSide.none),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       ),
     );
   }

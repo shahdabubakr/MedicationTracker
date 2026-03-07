@@ -19,6 +19,8 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  bool _notificationPromptShown = false;
+
   // دالة إظهار تفاصيل الدواء (الكومنت) في Pop-up
   void _showMedicineDetails(BuildContext context, String name, String? desc,
       String time, bool isDark, bool isAr) {
@@ -87,6 +89,17 @@ class _HomeScreenState extends State<HomeScreen> {
     bool isDark = Theme.of(context).brightness == Brightness.dark;
     Color primaryColor = const Color(0xFF4A90E2);
 
+    // أول ما نوصل للهوم، نسأل المستخدم عن تفعيل التنبيهات مرة واحدة
+    if (!_notificationPromptShown) {
+      _notificationPromptShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        final enabled = await NotificationService().areNotificationsEnabled();
+        if (!enabled && mounted) {
+          _showNotificationDialog(context, isAr, primaryColor);
+        }
+      });
+    }
+
     return Scaffold(
       backgroundColor:
           isDark ? const Color(0xFF121212) : const Color(0xFFF8FAFF),
@@ -113,13 +126,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
               return Container(
                 padding: const EdgeInsets.only(
-                    top: 60, left: 25, right: 25, bottom: 25),
+                    top: 52, left: 24, right: 24, bottom: 28),
                 decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(35),
-                    bottomRight: Radius.circular(35),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [
+                            const Color(0xFF1E293B),
+                            const Color(0xFF0F172A),
+                          ]
+                        : [
+                            const Color(0xFF4A90E2),
+                            const Color(0xFF3B82F6),
+                          ],
                   ),
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
+                  ),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: primaryColor.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
                 ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -132,24 +166,50 @@ class _HomeScreenState extends State<HomeScreen> {
                               ? "أهلاً يا $currentName"
                               : "Welcome, $currentName",
                           style: const TextStyle(
-                              fontSize: 22, fontWeight: FontWeight.bold),
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
                         ),
-                        Text(
-                          isAr ? "العمر: $age سنة" : "Age: $age years",
-                          style: TextStyle(
-                              color: primaryColor, fontWeight: FontWeight.bold),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            isAr ? "العمر: $age سنة" : "Age: $age years",
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                    IconButton(
-                      icon:
-                          Icon(Icons.person_pin, size: 35, color: primaryColor),
-                      onPressed: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SettingsScreen(
-                            currentName: currentName,
-                            currentYear: currentYear,
+                    Material(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SettingsScreen(
+                              currentName: currentName,
+                              currentYear: currentYear,
+                            ),
+                          ),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: Icon(
+                            Icons.settings_rounded,
+                            size: 26,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -174,16 +234,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.medication_liquid_sharp,
-                          size: 130,
-                          color: isDark ? Colors.white10 : Colors.grey[200],
+                        Container(
+                          padding: const EdgeInsets.all(28),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: primaryColor.withValues(alpha: 0.1),
+                          ),
+                          child: Icon(
+                            Icons.medication_liquid_rounded,
+                            size: 64,
+                            color: primaryColor.withValues(alpha: 0.6),
+                          ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                         Text(
                           isAr ? "لا توجد جرعات مضافة" : "No doses added yet",
-                          style:
-                              const TextStyle(color: Colors.grey, fontSize: 18),
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : const Color(0xFF6B7280),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          isAr ? "اضغط + لإضافة دواء" : "Tap + to add a medicine",
+                          style: TextStyle(
+                            color: isDark ? Colors.white38 : const Color(0xFF9CA3AF),
+                            fontSize: 14,
+                          ),
                         ),
                       ],
                     ),
@@ -208,19 +286,26 @@ class _HomeScreenState extends State<HomeScreen> {
                           isDark,
                           isAr),
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 15),
-                        padding: const EdgeInsets.all(20),
+                        margin: const EdgeInsets.only(bottom: 14),
+                        padding: const EdgeInsets.all(18),
                         decoration: BoxDecoration(
-                          color:
-                              isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                          color: isDark
+                              ? const Color(0xFF1E1E1E)
+                              : Colors.white,
                           borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            if (!isDark)
-                              BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
-                                  blurRadius: 10,
-                                  offset: const Offset(0, 4))
-                          ],
+                          border: isDark
+                              ? Border.all(
+                                  color: Colors.white.withValues(alpha: 0.06))
+                              : null,
+                          boxShadow: isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.06),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -228,45 +313,76 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               children: [
                                 Container(
-                                  padding: const EdgeInsets.all(10),
+                                  padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: primaryColor.withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(12),
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        primaryColor,
+                                        primaryColor.withValues(alpha: 0.8),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(14),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryColor.withValues(alpha: 0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
-                                  child: Icon(Icons.medication,
-                                      color: primaryColor),
+                                  child: const Icon(
+                                    Icons.medication_rounded,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
                                 ),
-                                const SizedBox(width: 15),
+                                const SizedBox(width: 16),
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       data['name'],
-                                      style: const TextStyle(
-                                          fontSize: 18,
-                                          fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark
+                                            ? Colors.white
+                                            : const Color(0xFF1F2937),
+                                      ),
                                     ),
-                                    const SizedBox(height: 5),
+                                    const SizedBox(height: 4),
                                     Text(
                                       "${isAr ? 'الموعد' : 'Time'}: ${data['time']}",
                                       style: TextStyle(
-                                          color: primaryColor,
-                                          fontWeight: FontWeight.bold),
+                                        color: primaryColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 14,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  color: Colors.redAccent),
-                              onPressed: () async {
-                                int notifyId = int.parse(
-                                    docId.substring(docId.length - 6));
-                                await NotificationService()
-                                    .cancelNotification(notifyId);
-                                FirebaseService().deleteMedicine(docId);
-                              },
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () async {
+                                  int notifyId = int.parse(
+                                      docId.substring(docId.length - 6));
+                                  await NotificationService()
+                                      .cancelNotification(notifyId);
+                                  FirebaseService().deleteMedicine(docId);
+                                },
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.delete_outline_rounded,
+                                    color: Colors.redAccent,
+                                    size: 24,
+                                  ),
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -280,40 +396,169 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ),
 
-      // 3. البار السفلي - كما هو
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        onTap: (index) {
-          if (index == 1) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const AddMedicineScreen()),
-            );
-          } else if (index == 2) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SettingsScreen(
-                  currentName: widget.userName,
-                  currentYear: widget.birthYear,
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(
+                  icon: Icons.home_rounded,
+                  label: isAr ? "الرئيسية" : "Home",
+                  isSelected: true,
+                  primaryColor: primaryColor,
+                  isDark: isDark,
+                  onTap: () {},
                 ),
-              ),
-            );
-          }
-        },
-        showSelectedLabels: false,
-        showUnselectedLabels: false,
-        items: const [
-          BottomNavigationBarItem(
-              icon: Icon(Icons.home_filled, size: 28), label: ""),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.add_circle, size: 45, color: Color(0xFF4A90E2)),
-            label: "",
+                _NavItem(
+                  icon: Icons.add_circle_rounded,
+                  label: isAr ? "إضافة" : "Add",
+                  isSelected: false,
+                  primaryColor: primaryColor,
+                  isDark: isDark,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const AddMedicineScreen()),
+                  ),
+                ),
+                _NavItem(
+                  icon: Icons.settings_rounded,
+                  label: isAr ? "الإعدادات" : "Settings",
+                  isSelected: false,
+                  primaryColor: primaryColor,
+                  isDark: isDark,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SettingsScreen(
+                        currentName: widget.userName,
+                        currentYear: widget.birthYear,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.settings_rounded, size: 28), label: ""),
+        ),
+      ),
+    );
+  }
+
+  void _showNotificationDialog(
+      BuildContext context, bool isAr, Color primaryColor) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Icon(Icons.notifications_active, color: primaryColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                isAr ? "تفعيل التنبيهات" : "Enable reminders",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          isAr
+              ? "هل تريد أن يصلك تنبيه عند موعد كل جرعة دواء؟ يمكنك تغيير هذا لاحقاً من الإعدادات."
+              : "Do you want to receive a notification at each dose time? You can change this later from Settings.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(isAr ? "لاحقاً" : "Later"),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primaryColor,
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              final allowed =
+                  await NotificationService().enableNotifications();
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(allowed
+                      ? (isAr
+                          ? "تم تفعيل التنبيهات بنجاح"
+                          : "Reminders enabled successfully")
+                      : (isAr
+                          ? "لم يتم منح صلاحية الإشعارات من النظام"
+                          : "Notification permission was not granted"))));
+            },
+            child: Text(
+              isAr ? "تفعيل" : "Enable",
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  final Color primaryColor;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: isSelected ? 28 : 26,
+              color: isSelected ? primaryColor : (isDark ? Colors.white54 : const Color(0xFF9CA3AF)),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? primaryColor : (isDark ? Colors.white54 : const Color(0xFF9CA3AF)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
