@@ -87,8 +87,7 @@ class LanguageSelectionScreen extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 14,
-                      color:
-                          isDark ? Colors.white70 : const Color(0xFF6B7280),
+                      color: isDark ? Colors.white70 : const Color(0xFF6B7280),
                     ),
                   ),
                   const SizedBox(height: 28),
@@ -149,5 +148,3 @@ class LanguageSelectionScreen extends StatelessWidget {
     );
   }
 }
-
-

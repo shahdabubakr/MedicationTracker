@@ -1,28 +1,35 @@
 class UserModel {
-  final String uid; // رقم اليوزر في فايربيز
-  final String name; // اسمه
-  final int birthYear; // سنة ميلاده
-  final String email; // إيميله
+  final String uid;
+  final String name;
+  final int birthYear;
+  final String email;
+  final String phone;
 
   UserModel({
     required this.uid,
     required this.name,
     required this.birthYear,
     required this.email,
+    required this.phone,
   });
 
-  // 1. تحويل البيانات من "كلاس" لـ "Map" عشان تتبعت للفايربيز
   Map<String, dynamic> toMap() {
-    return {'uid': uid, 'name': name, 'birthYear': birthYear, 'email': email};
+    return {
+      'uid': uid,
+      'name': name,
+      'birthYear': birthYear,
+      'email': email,
+      'phone': phone,
+    };
   }
 
-  // 2. تحويل البيانات اللي جاية من فايربيز (Map) لـ "كلاس" عشان نستخدمها في الأبلكيشن
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
       uid: map['uid'] ?? '',
       name: map['name'] ?? '',
       birthYear: map['birthYear'] ?? 2000,
       email: map['email'] ?? '',
+      phone: map['phone'] ?? '',
     );
   }
 }

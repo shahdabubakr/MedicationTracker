@@ -14,7 +14,7 @@ class AppProvider with ChangeNotifier {
 
   _loadSettings() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    
+
     // تحميل الثيم
     bool? isDark = prefs.getBool('isDark');
     if (isDark != null) {

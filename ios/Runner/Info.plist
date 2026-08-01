@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSUserNotificationsUsageDescription</key>
+	<string>نستخدم الإشعارات لتذكيرك بمواعيد جرعات الدواء.</string>
 </dict>
 </plist>

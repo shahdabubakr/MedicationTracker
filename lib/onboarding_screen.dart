@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'login_screen.dart';
+import 'login/singup/login_screen.dart';
 import 'app_provider.dart';
 import 'notification_service.dart';
 

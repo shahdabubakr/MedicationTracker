@@ -4,12 +4,11 @@ import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'app_provider.dart';
 import 'notification_service.dart';
-import 'splash_screen.dart';
+import 'login/singup/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase with the configuration
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: 'AIzaSyCxAD4VF4_DvaXphgzToABdmQssQllqEC0',
@@ -20,7 +19,6 @@ void main() async {
     ),
   );
 
-  // 2. تشغيل خدمة التنبيهات
   await NotificationService().init();
 
   runApp(
@@ -43,8 +41,6 @@ class MedicationApp extends StatelessWidget {
       title: 'ECHO',
       themeMode: appProvider.themeMode,
       locale: appProvider.locale,
-
-      // دعم اللغات لقلب واجهة المستخدم
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
@@ -54,7 +50,6 @@ class MedicationApp extends StatelessWidget {
         Locale('ar', ''),
         Locale('en', ''),
       ],
-
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
