@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:pin_code_fields/pin_code_fields.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '\\app_provider.dart';
-import 'newpassword.dart';
+import 'login_screen.dart';
 
 class VerifyCode extends StatefulWidget {
   final String otp;
@@ -51,15 +52,78 @@ class _VerifyCodeState extends State<VerifyCode> {
       return;
     }
 
-    // الكود صح — نروح NewPassword
-    if (mounted) {
-      setState(() => _isLoading = false);
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => NewPassword(email: widget.email),
-        ),
+    // الكود صح — نبعت reset link من Firebase
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: widget.email,
       );
+
+      if (mounted) {
+        setState(() => _isLoading = false);
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
+            title: Text(
+              isAr ? '✅ تم التحقق بنجاح' : '✅ Verified',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              textAlign: TextAlign.center,
+            ),
+            content: Text(
+              isAr
+                  ? 'تم إرسال رابط تغيير كلمة المرور إلى بريدك الإلكتروني.\n\n'
+                      '1️⃣ افتح إيميلك\n'
+                      '2️⃣ اضغط على الرابط\n'
+                      '3️⃣ غير كلمة المرور\n'
+                      '4️⃣ ارجع وسجل دخول'
+                  : 'A password reset link has been sent to your email.\n\n'
+                      '1️⃣ Open your email\n'
+                      '2️⃣ Click the link\n'
+                      '3️⃣ Change your password\n'
+                      '4️⃣ Come back and login',
+              style: const TextStyle(height: 1.8),
+              textAlign: TextAlign.center,
+            ),
+            actions: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF4A90E2),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.pushAndRemoveUntil(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const LoginScreen()),
+                      (route) => false,
+                    );
+                  },
+                  child: Text(
+                    isAr ? 'حسناً، سأفتح إيميلي' : 'OK, I\'ll check my email',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Error: ${e.toString()}"),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 

@@ -8,6 +8,8 @@ import 'notification_service.dart';
 import 'add_medicine_screen.dart';
 import 'settings/settings_screen.dart';
 import 'MedicineSearchScreen.dart';
+import 'settings/meal_times_setup_dialog.dart';
+import 'settings/link_machine_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String userName;
@@ -24,8 +26,128 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _notificationPromptShown = false;
+  bool _mealTimesChecked = false;
+  bool _machineChecked = false;
   final Map<String, String> _scheduledByDocId = {};
   bool _scheduling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkMealTimesSet();
+      _checkMachineLinked();
+    });
+  }
+
+  Future<void> _checkMealTimesSet() async {
+    if (_mealTimesChecked) return;
+    _mealTimesChecked = true;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final mealTimesSet = doc.data()?['mealTimesSet'] ?? false;
+
+    if (!mealTimesSet && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const MealTimesSetupDialog(),
+      );
+    }
+  }
+
+  // التحقق مما إذا كانت الماكينة مربوطة أم لا أول ما يفتح الهوم
+  Future<void> _checkMachineLinked() async {
+    if (_machineChecked) return;
+    _machineChecked = true;
+
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final doc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .get();
+
+    final machineLinked = doc.data()?['machineLinked'] ?? false;
+
+    if (!machineLinked && mounted) {
+      _showLinkMachineDialog(context);
+    }
+  }
+
+  void _showLinkMachineDialog(BuildContext context) {
+    final TextEditingController codeController = TextEditingController();
+    bool isDark = Theme.of(context).brightness == Brightness.dark;
+    bool isAr = Provider.of<AppProvider>(context, listen: false).locale.languageCode == 'ar';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.link_rounded, color: Color(0xFF4A90E2), size: 28),
+            const SizedBox(width: 10),
+            Text(
+              isAr ? "ربط ماكينة الأدوية" : "Link Dispenser",
+              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isAr 
+                  ? "يرجى إدخال كود الماكينة الظاهر على شاشة الـ LCD الخاصة بالماكينة:" 
+                  : "Please enter the machine code displayed on the LCD:",
+              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: codeController,
+              decoration: InputDecoration(
+                labelText: isAr ? "كود الماكينة" : "Machine Code",
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4A90E2),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () async {
+              if (codeController.text.trim().isNotEmpty) {
+                final uid = FirebaseAuth.instance.currentUser?.uid;
+                if (uid != null) {
+                  await FirebaseFirestore.instance.collection('users').doc(uid).update({
+                    'machineCode': codeController.text.trim(),
+                    'machineLinked': true,
+                  });
+                }
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+            child: Text(isAr ? "ربط" : "Link", style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _ensureNotificationsScheduled(
       List<QueryDocumentSnapshot> docs) async {
@@ -42,7 +164,9 @@ class _HomeScreenState extends State<HomeScreen> {
       for (final doc in docs) {
         final data = doc.data() as Map<String, dynamic>;
         final String name = (data['name'] ?? '').toString().trim();
-        final String time = (data['time'] ?? '').toString().trim();
+        
+        final String time = (data['time'] ?? data['notificationTimes'] != null && (data['notificationTimes'] is List && (data['notificationTimes'] as List).isNotEmpty) ? data['notificationTimes'][0] : '').toString().trim();
+        
         if (name.isEmpty || time.isEmpty) continue;
 
         final String lastScheduledTime = _scheduledByDocId[doc.id] ?? '';
@@ -51,7 +175,6 @@ class _HomeScreenState extends State<HomeScreen> {
         final int notifyId =
             NotificationService.notificationIdFromDocId(doc.id);
 
-        // سطر التعديل: استخراج لغة التطبيق الحالية لتمريرها للإشعار
         bool currentIsAr = Provider.of<AppProvider>(context, listen: false)
                 .locale
                 .languageCode ==
@@ -88,7 +211,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 10),
             Text(
               isAr ? "تأكيد الحذف" : "Confirm Delete",
-              style: TextStyle(color: isDark ? Colors.white : Colors.black),
+              style:
+                  TextStyle(color: isDark ? Colors.white : Colors.black),
             ),
           ],
         ),
@@ -101,7 +225,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? "هل أنت متأكد من حذف هذا الدواء؟"
                   : "Are you sure you want to delete this medicine?",
               textAlign: TextAlign.center,
-              style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+              style: TextStyle(
+                  color: isDark ? Colors.white70 : Colors.black87),
             ),
             const SizedBox(height: 16),
             Container(
@@ -115,13 +240,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text("${isAr ? 'الدواء' : 'Medicine'}: $name",
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                      style:
+                          const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text("${isAr ? 'الموعد' : 'Time'}: $time"),
                   if (desc != null && desc.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text("${isAr ? 'الملاحظات' : 'Notes'}: $desc",
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis),
                   ],
                 ],
               ),
@@ -178,7 +305,8 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
         title: Row(
           children: [
             const Icon(Icons.info_outline, color: Color(0xFF4A90E2)),
@@ -220,7 +348,9 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 8),
               Text(
                 (desc == null || desc.isEmpty)
-                    ? (isAr ? "لا توجد ملاحظات إضافية" : "No additional notes")
+                    ? (isAr
+                        ? "لا توجد ملاحظات إضافية"
+                        : "No additional notes")
                     : desc,
                 style: TextStyle(
                   fontSize: 16,
@@ -257,7 +387,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_notificationPromptShown) {
       _notificationPromptShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        final prompt = await NotificationService().shouldPromptForPermission();
+        final prompt =
+            await NotificationService().shouldPromptForPermission();
         if (prompt && mounted) {
           _showNotificationDialog(context, isAr, primaryColor);
         }
@@ -283,8 +414,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _ensureNotificationsScheduled(
-                      snapshot.data!.docs.cast<QueryDocumentSnapshot>());
+                  _ensureNotificationsScheduled(snapshot.data!.docs
+                      .cast<QueryDocumentSnapshot>());
                 });
 
                 return ListView.builder(
@@ -294,8 +425,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     var data = snapshot.data!.docs[index].data()
                         as Map<String, dynamic>;
                     String docId = snapshot.data!.docs[index].id;
-                    return _buildMedicineCard(
-                        data, docId, isAr, isDark, primaryColor, context);
+                    return _buildMedicineCard(data, docId, isAr, isDark,
+                        primaryColor, context);
                   },
                 );
               },
@@ -310,9 +441,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildMedicineCard(Map data, String docId, bool isAr, bool isDark,
       Color primaryColor, BuildContext context) {
+    
+    final String displayTime = data['time'] ?? 
+        (data['notificationTimes'] != null && (data['notificationTimes'] is List && (data['notificationTimes'] as List).isNotEmpty) 
+            ? data['notificationTimes'].join(', ') 
+            : 'No time set');
+
     return GestureDetector(
       onTap: () => _showMedicineDetails(context, data['name'],
-          data['description'], data['time'], isDark, isAr),
+          data['description'], displayTime, isDark, isAr),
       child: Container(
         margin: const EdgeInsets.only(bottom: 14),
         padding: const EdgeInsets.all(18),
@@ -334,8 +471,10 @@ class _HomeScreenState extends State<HomeScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                    colors: [primaryColor, primaryColor.withOpacity(0.8)]),
+                gradient: LinearGradient(colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8)
+                ]),
                 borderRadius: BorderRadius.circular(14),
               ),
               child: const Icon(Icons.medication_rounded,
@@ -347,11 +486,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    data['name'],
+                    data['name'] ?? '',
                     style: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.bold,
-                      color: isDark ? Colors.white : const Color(0xFF1F2937),
+                      color: isDark
+                          ? Colors.white
+                          : const Color(0xFF1F2937),
                     ),
                     softWrap: true,
                     maxLines: 2,
@@ -359,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    "${isAr ? 'الموعد' : 'Time'}: ${data['time']}",
+                    "${isAr ? 'الموعد' : 'Time'}: $displayTime",
                     style: TextStyle(
                         color: primaryColor,
                         fontWeight: FontWeight.w600,
@@ -389,8 +530,8 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => _showDeleteConfirmation(
                   context,
                   docId,
-                  data['name'],
-                  data['time'],
+                  data['name'] ?? '',
+                  displayTime,
                   data['description'],
                   isAr,
                   isDark,
@@ -412,28 +553,40 @@ class _HomeScreenState extends State<HomeScreen> {
         String currentName = widget.userName;
         int currentYear = widget.birthYear;
 
+        if (currentName.isEmpty || currentName == 'null') {
+          currentName = FirebaseAuth.instance.currentUser?.displayName ?? '';
+        }
+
         if (userSnapshot.hasData && userSnapshot.data!.exists) {
-          var userData = userSnapshot.data!.data() as Map<String, dynamic>;
-          currentName = userData['name'] ?? widget.userName;
+          var userData =
+              userSnapshot.data!.data() as Map<String, dynamic>;
+          currentName = userData['name'] ?? currentName;
           currentYear = userData['birthYear'] ?? widget.birthYear;
         }
 
-        // --- التعديل هنا: استخراج الاسم الأول فقط ---
-        String firstName = currentName.trim().split(' ')[0];
-        // --------------------------------------------
+        if (currentName.isEmpty || currentName == 'null') {
+          currentName = isAr ? 'مستخدم' : 'User';
+        }
 
+        String firstName = currentName.trim().split(' ')[0];
         int age = DateTime.now().year - currentYear;
 
         return Container(
-          padding:
-              const EdgeInsets.only(top: 52, left: 24, right: 24, bottom: 28),
+          padding: const EdgeInsets.only(
+              top: 52, left: 24, right: 24, bottom: 28),
           decoration: BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: isDark
-                  ? [const Color(0xFF1E293B), const Color(0xFF0F172A)]
-                  : [const Color(0xFF4A90E2), const Color(0xFF3B82F6)],
+                  ? [
+                      const Color(0xFF1E293B),
+                      const Color(0xFF0F172A)
+                    ]
+                  : [
+                      const Color(0xFF4A90E2),
+                      const Color(0xFF3B82F6)
+                    ],
             ),
             borderRadius: const BorderRadius.only(
                 bottomLeft: Radius.circular(32),
@@ -447,7 +600,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isAr ? "أهلاً يا $firstName" : "Welcome, $firstName",
+                      isAr
+                          ? "أهلاً يا $firstName"
+                          : "Welcome, $firstName",
                       style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -456,7 +611,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       maxLines: 1,
                     ),
                     const SizedBox(height: 4),
-                    Text(isAr ? "العمر: $age سنة" : "Age: $age years",
+                    Text(
+                        isAr
+                            ? "العمر: $age سنة"
+                            : "Age: $age years",
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w600,
@@ -470,8 +628,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 onPressed: () => Navigator.push(
                     context,
                     MaterialPageRoute(
-                        builder: (context) =>
-                            MedicineSearchScreen(isAr: isAr, isDark: isDark))),
+                        builder: (context) => MedicineSearchScreen(
+                            isAr: isAr, isDark: isDark))),
               ),
             ],
           ),
@@ -488,7 +646,8 @@ class _HomeScreenState extends State<HomeScreen> {
           Icon(Icons.medication_liquid_rounded,
               size: 64, color: primaryColor.withOpacity(0.4)),
           const SizedBox(height: 16),
-          Text(isAr ? "لا توجد جرعات مضافة" : "No doses added yet",
+          Text(
+              isAr ? "لا توجد جرعات مضافة" : "No doses added yet",
               style: TextStyle(
                   color: isDark ? Colors.white70 : Colors.blueGrey,
                   fontSize: 18)),
@@ -497,14 +656,18 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNavigationBar(bool isAr, bool isDark, Color primaryColor) {
+  Widget _buildBottomNavigationBar(
+      bool isAr, bool isDark, Color primaryColor) {
     return Container(
       decoration: BoxDecoration(
           color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+          boxShadow: const [
+            BoxShadow(color: Colors.black12, blurRadius: 10)
+          ]),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
@@ -524,7 +687,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (context) => const AddMedicineScreen()))),
+                          builder: (context) =>
+                              const AddMedicineScreen()))),
               _NavItem(
                   icon: Icons.settings_rounded,
                   label: isAr ? "الإعدادات" : "Settings",
@@ -550,10 +714,12 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.notifications_active_rounded, color: primaryColor),
+            Icon(Icons.notifications_active_rounded,
+                color: primaryColor),
             const SizedBox(width: 10),
             Text(isAr ? "تفعيل الإشعارات" : "Enable Notifications"),
           ],
@@ -575,7 +741,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor),
             onPressed: () async {
               Navigator.pop(context);
               await NotificationService().enableNotifications();
@@ -600,13 +767,14 @@ class _NavItem extends StatelessWidget {
   final bool isDark;
   final VoidCallback onTap;
 
-  const _NavItem(
-      {required this.icon,
-      required this.label,
-      required this.isSelected,
-      required this.primaryColor,
-      required this.isDark,
-      required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.isDark,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

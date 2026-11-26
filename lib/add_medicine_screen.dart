@@ -20,32 +20,29 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   final PageController _pageController = PageController();
   int _currentStep = 0;
 
-  // Step 1
   late TextEditingController nameController;
   late TextEditingController descController;
 
-  // Step 2 - كام مرة
-  int timesPerDay = 1; // 1, 2, 3
+  int timesPerDay = 1;
   bool isEveryXHours = false;
   int everyXHours = 8;
 
-  // Step 3 - علاقة بالأكل
-  String mealRelation = 'any'; // 'before' / 'after' / 'with' / 'any'
-  int minutesOffset = 30; // قبل أو بعد بكام دقيقة
+  String mealRelation = 'any';
+  int minutesOffset = 30;
 
-  // Step 4 - المواعيد
-  // وقت كل وجبة
+  // تحديد الوجبات المفعلة (الفطار مفعل افتراضياً)
+  bool isBreakfastSelected = true;
+  bool isLunchSelected = false;
+  bool isDinnerSelected = false;
+
   TimeOfDay breakfastTime = const TimeOfDay(hour: 8, minute: 0);
   TimeOfDay lunchTime = const TimeOfDay(hour: 14, minute: 0);
   TimeOfDay dinnerTime = const TimeOfDay(hour: 21, minute: 0);
 
-  // وقت يدوي (لو any أو everyXHours)
   List<TimeOfDay> manualTimes = [const TimeOfDay(hour: 8, minute: 0)];
 
-  // أيام التكرار
   List<int> selectedDays = [];
   bool isDaily = true;
-
   bool isSaving = false;
 
   final List<Map<String, dynamic>> weekDays = [
@@ -61,8 +58,10 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   @override
   void initState() {
     super.initState();
-    nameController = TextEditingController(text: widget.existingData?['name'] ?? '');
-    descController = TextEditingController(text: widget.existingData?['description'] ?? '');
+    nameController =
+        TextEditingController(text: widget.existingData?['name'] ?? '');
+    descController =
+        TextEditingController(text: widget.existingData?['description'] ?? '');
 
     if (widget.existingData != null) {
       final d = widget.existingData!;
@@ -74,9 +73,14 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       isDaily = d['isDaily'] ?? true;
       selectedDays = List<int>.from(d['days'] ?? []);
 
+      isBreakfastSelected = d['isBreakfastSelected'] ?? true;
+      isLunchSelected = d['isLunchSelected'] ?? false;
+      isDinnerSelected = d['isDinnerSelected'] ?? false;
+
       if (d['breakfastTime'] != null) {
         final p = (d['breakfastTime'] as String).split(':');
-        breakfastTime = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+        breakfastTime =
+            TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
       }
       if (d['lunchTime'] != null) {
         final p = (d['lunchTime'] as String).split(':');
@@ -92,6 +96,37 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           return TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
         }).toList();
       }
+    } else {
+      _loadMealTimesFromFirestore();
+    }
+  }
+
+  Future<void> _loadMealTimesFromFirestore() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final doc =
+        await FirebaseFirestore.instance.collection('users').doc(uid).get();
+
+    final mealTimes = doc.data()?['mealTimes'] as Map<String, dynamic>?;
+
+    if (mealTimes != null && mounted) {
+      setState(() {
+        if (mealTimes['breakfast'] != null) {
+          final p = (mealTimes['breakfast'] as String).split(':');
+          breakfastTime =
+              TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+        }
+        if (mealTimes['lunch'] != null) {
+          final p = (mealTimes['lunch'] as String).split(':');
+          lunchTime = TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+        }
+        if (mealTimes['dinner'] != null) {
+          final p = (mealTimes['dinner'] as String).split(':');
+          dinnerTime =
+              TimeOfDay(hour: int.parse(p[0]), minute: int.parse(p[1]));
+        }
+      });
     }
   }
 
@@ -103,12 +138,10 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     super.dispose();
   }
 
-  // حساب المواعيد الفعلية للإشعارات
   List<String> _computeNotificationTimes() {
     List<TimeOfDay> base = [];
 
     if (isEveryXHours) {
-      // كل X ساعات بدءاً من أول وقت يدوي
       final start = manualTimes.isNotEmpty
           ? manualTimes[0]
           : const TimeOfDay(hour: 8, minute: 0);
@@ -120,19 +153,22 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         h += everyXHours;
       }
     } else if (mealRelation == 'any') {
-      base = List.from(manualTimes);
+      base = List.generate(timesPerDay, (i) {
+        if (i < manualTimes.length) return manualTimes[i];
+        return TimeOfDay(hour: (8 + (i * 4)) % 24, minute: 0);
+      });
     } else {
-      // مرتبط بالوجبات
+      // مرتبط بالوجبات المختارة فقط
       final meals = <TimeOfDay>[];
-      if (timesPerDay >= 1) meals.add(breakfastTime);
-      if (timesPerDay >= 2) meals.add(lunchTime);
-      if (timesPerDay >= 3) meals.add(dinnerTime);
+      if (isBreakfastSelected) meals.add(breakfastTime);
+      if (isLunchSelected) meals.add(lunchTime);
+      if (isDinnerSelected) meals.add(dinnerTime);
 
       for (final meal in meals) {
         int totalMinutes = meal.hour * 60 + meal.minute;
         if (mealRelation == 'before') totalMinutes -= minutesOffset;
         if (mealRelation == 'after') totalMinutes += minutesOffset;
-        totalMinutes = totalMinutes.clamp(0, 23 * 60 + 59);
+        totalMinutes = (totalMinutes + 1440) % 1440;
         base.add(TimeOfDay(
           hour: totalMinutes ~/ 60,
           minute: totalMinutes % 60,
@@ -146,6 +182,14 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         .toList();
   }
 
+  int _getCurrentlySelectedMealsCount() {
+    int count = 0;
+    if (isBreakfastSelected) count++;
+    if (isLunchSelected) count++;
+    if (isDinnerSelected) count++;
+    return count;
+  }
+
   Future<void> _handleSave() async {
     if (nameController.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +197,20 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       );
       return;
     }
+
+    if (!isEveryXHours && mealRelation != 'any') {
+      final selectedCount = _getCurrentlySelectedMealsCount();
+      if (selectedCount != timesPerDay) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'لقد اخترت $timesPerDay مرات يومياً، يرجى تحديد $timesPerDay وجبات بالضبط.'),
+          ),
+        );
+        return;
+      }
+    }
+
     if (!isDaily && selectedDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('اختر يوم واحد على الأقل')),
@@ -162,10 +220,12 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
 
     setState(() => isSaving = true);
     final isAr =
-        Provider.of<AppProvider>(context, listen: false).locale.languageCode == 'ar';
+        Provider.of<AppProvider>(context, listen: false).locale.languageCode ==
+            'ar';
 
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final medId = widget.docId ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final medId =
+        widget.docId ?? DateTime.now().millisecondsSinceEpoch.toString();
     final notificationTimes = _computeNotificationTimes();
     final daysToSave = isDaily ? [1, 2, 3, 4, 5, 6, 7] : selectedDays;
 
@@ -177,6 +237,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       'everyXHours': everyXHours,
       'mealRelation': mealRelation,
       'minutesOffset': minutesOffset,
+      'isBreakfastSelected': isBreakfastSelected,
+      'isLunchSelected': isLunchSelected,
+      'isDinnerSelected': isDinnerSelected,
       'breakfastTime':
           '${breakfastTime.hour.toString().padLeft(2, '0')}:${breakfastTime.minute.toString().padLeft(2, '0')}',
       'lunchTime':
@@ -194,7 +257,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     };
 
     try {
-      // Firestore
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -202,30 +264,27 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           .doc(medId)
           .set(data, SetOptions(merge: true));
 
-      // Realtime DB
-      await FirebaseDatabase.instance
-          .ref('devices/$uid/alarms/$medId')
-          .set({
+      await FirebaseDatabase.instance.ref('devices/$uid/alarms/$medId').set({
         'times': notificationTimes.join(','),
         'status': 'pending',
         'medName': nameController.text.trim(),
         'days': daysToSave.join(','),
       });
 
-      // إلغاء الإشعارات القديمة وجدولة الجديدة
       for (int i = 0; i < 10; i++) {
-        await NotificationService()
-            .cancelNotification(NotificationService.notificationIdFromDocId('${medId}_$i'));
+        await NotificationService().cancelNotification(
+            NotificationService.notificationIdFromDocId('${medId}_$i'));
       }
       for (int i = 0; i < notificationTimes.length; i++) {
         final nId = NotificationService.notificationIdFromDocId('${medId}_$i');
-        await NotificationService()
-            .scheduleNotification(nId, nameController.text.trim(), notificationTimes[i], isAr);
+        await NotificationService().scheduleNotification(
+            nId, nameController.text.trim(), notificationTimes[i], isAr);
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(widget.docId == null ? 'تمت الإضافة ✓' : 'تم التحديث ✓'),
+          content:
+              Text(widget.docId == null ? 'تمت الإضافة ✓' : 'تم التحديث ✓'),
           backgroundColor: Colors.green,
         ));
         Navigator.pop(context);
@@ -297,7 +356,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                   children: [
                     IconButton(
                       icon: Icon(Icons.arrow_back_ios_new_rounded,
-                          color: isDark ? Colors.white : Colors.black87, size: 22),
+                          color: isDark ? Colors.white : Colors.black87,
+                          size: 22),
                       onPressed: _currentStep == 0
                           ? () => Navigator.pop(context)
                           : _prevStep,
@@ -323,7 +383,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
 
               // Step Indicator
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 child: Row(
                   children: List.generate(steps.length, (i) {
                     final isActive = i == _currentStep;
@@ -333,12 +394,15 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                         children: [
                           Expanded(
                             child: GestureDetector(
-                              onTap: isDone ? () {
-                                setState(() => _currentStep = i);
-                                _pageController.animateToPage(i,
-                                    duration: const Duration(milliseconds: 300),
-                                    curve: Curves.easeInOut);
-                              } : null,
+                              onTap: isDone
+                                  ? () {
+                                      setState(() => _currentStep = i);
+                                      _pageController.animateToPage(i,
+                                          duration:
+                                              const Duration(milliseconds: 300),
+                                          curve: Curves.easeInOut);
+                                    }
+                                  : null,
                               child: Column(
                                 children: [
                                   AnimatedContainer(
@@ -399,7 +463,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                                 margin: const EdgeInsets.only(bottom: 20),
                                 color: i < _currentStep
                                     ? Colors.green
-                                    : (isDark ? Colors.white12 : Colors.black12),
+                                    : (isDark
+                                        ? Colors.white12
+                                        : Colors.black12),
                               ),
                             ),
                         ],
@@ -469,7 +535,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     );
   }
 
-  // ===== Step 1: اسم الدواء =====
+  // ===== Step 1 =====
   Widget _buildStep1(bool isAr, bool isDark, Color primary) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -487,7 +553,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             primary: primary,
           ),
           const SizedBox(height: 20),
-          _sectionTitle(isAr ? 'ملاحظات (اختياري)' : 'Notes (optional)', isDark),
+          _sectionTitle(
+              isAr ? 'ملاحظات (اختياري)' : 'Notes (optional)', isDark),
           const SizedBox(height: 12),
           _buildTextField(
             controller: descController,
@@ -498,8 +565,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
             maxLines: 3,
           ),
           const SizedBox(height: 24),
-
-          // أيام التكرار
           _sectionTitle(isAr ? 'التكرار' : 'Repeat', isDark),
           const SizedBox(height: 12),
           _buildCard(
@@ -573,7 +638,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     );
   }
 
-  // ===== Step 2: الجرعة =====
+  // ===== Step 2 =====
   Widget _buildStep2(bool isAr, bool isDark, Color primary) {
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -581,15 +646,13 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-
-          // كام مرة في اليوم؟
-          _sectionTitle(isAr ? 'كام مرة في اليوم؟' : 'How many times a day?', isDark),
+          _sectionTitle(
+              isAr ? 'كام مرة في اليوم؟' : 'How many times a day?', isDark),
           const SizedBox(height: 12),
           _buildCard(
             isDark: isDark,
             child: Column(
               children: [
-                // Toggle: كل X ساعات أو مرات محددة
                 Row(
                   children: [
                     Expanded(
@@ -621,8 +684,21 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                       _circleButton(
                         icon: Icons.remove,
                         onTap: () {
-                          if (timesPerDay > 1)
-                            setState(() => timesPerDay--);
+                          if (timesPerDay > 1) {
+                            setState(() {
+                              timesPerDay--;
+                              // ضبط الاختيارات الافتراضية للوجبات
+                              if (timesPerDay == 1) {
+                                isBreakfastSelected = true;
+                                isLunchSelected = false;
+                                isDinnerSelected = false;
+                              } else if (timesPerDay == 2) {
+                                isBreakfastSelected = true;
+                                isLunchSelected = true;
+                                isDinnerSelected = false;
+                              }
+                            });
+                          }
                         },
                         isDark: isDark,
                       ),
@@ -650,8 +726,19 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                       _circleButton(
                         icon: Icons.add,
                         onTap: () {
-                          if (timesPerDay < 6)
-                            setState(() => timesPerDay++);
+                          if (timesPerDay < 3) {
+                            setState(() {
+                              timesPerDay++;
+                              if (timesPerDay == 2) {
+                                isBreakfastSelected = true;
+                                isLunchSelected = true;
+                              } else if (timesPerDay == 3) {
+                                isBreakfastSelected = true;
+                                isLunchSelected = true;
+                                isDinnerSelected = true;
+                              }
+                            });
+                          }
                         },
                         isDark: isDark,
                         primary: primary,
@@ -704,10 +791,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // علاقة بالأكل
           _sectionTitle(isAr ? 'علاقته بالأكل' : 'Relation to meals', isDark),
           const SizedBox(height: 12),
           _buildCard(
@@ -791,11 +875,9 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
     );
   }
 
-  // ===== Step 3: المواعيد =====
+  // ===== Step 3 =====
   Widget _buildStep3(bool isAr, bool isDark, Color primary) {
-    final showMeals =
-        (mealRelation != 'any') && !isEveryXHours;
-    final mealsNeeded = timesPerDay.clamp(1, 3);
+    final showMeals = (mealRelation != 'any') && !isEveryXHours;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -803,120 +885,80 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 8),
-
           if (showMeals) ...[
             _sectionTitle(
-              isAr ? 'وقت وجباتك' : 'Your meal times',
+              isAr ? 'اختر الوجبات ومواعيدها' : 'Select meals and times',
               isDark,
               subtitle: isAr
-                  ? 'هنحسب موعد الدواء تلقائياً'
-                  : 'We\'ll calculate dose time automatically',
+                  ? 'اختر $timesPerDay وجبة تناسب جدول علاجك'
+                  : 'Select $timesPerDay meals for your dose schedule',
             ),
             const SizedBox(height: 12),
             _buildCard(
               isDark: isDark,
               child: Column(
                 children: [
-                  if (mealsNeeded >= 1)
-                    _mealTimeTile(
-                      emoji: '☀️',
-                      label: isAr ? 'الفطار' : 'Breakfast',
-                      time: breakfastTime,
-                      primary: primary,
-                      isDark: isDark,
-                      onTap: () async {
-                        final t = await showTimePicker(
-                            context: context, initialTime: breakfastTime);
-                        if (t != null) setState(() => breakfastTime = t);
-                      },
-                    ),
-                  if (mealsNeeded >= 2) ...[
-                    const Divider(height: 1),
-                    _mealTimeTile(
-                      emoji: '🌤️',
-                      label: isAr ? 'الغداء' : 'Lunch',
-                      time: lunchTime,
-                      primary: primary,
-                      isDark: isDark,
-                      onTap: () async {
-                        final t = await showTimePicker(
-                            context: context, initialTime: lunchTime);
-                        if (t != null) setState(() => lunchTime = t);
-                      },
-                    ),
-                  ],
-                  if (mealsNeeded >= 3) ...[
-                    const Divider(height: 1),
-                    _mealTimeTile(
-                      emoji: '🌙',
-                      label: isAr ? 'العشاء' : 'Dinner',
-                      time: dinnerTime,
-                      primary: primary,
-                      isDark: isDark,
-                      onTap: () async {
-                        final t = await showTimePicker(
-                            context: context, initialTime: dinnerTime);
-                        if (t != null) setState(() => dinnerTime = t);
-                      },
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // عرض مواعيد الإشعارات المحسوبة
-            _buildCard(
-              isDark: isDark,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.notifications_active_rounded,
-                          color: primary, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        isAr ? 'مواعيد الإشعارات' : 'Notification times',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: isDark ? Colors.white : Colors.black87,
-                        ),
-                      ),
-                    ],
+                  _selectableMealTimeTile(
+                    emoji: '🌅',
+                    label: isAr ? 'الفطار' : 'Breakfast',
+                    time: breakfastTime,
+                    isSelected: isBreakfastSelected,
+                    primary: primary,
+                    isDark: isDark,
+                    onToggle: (val) =>
+                        setState(() => isBreakfastSelected = val ?? false),
+                    onTimeTap: () async {
+                      final t = await showTimePicker(
+                          context: context, initialTime: breakfastTime);
+                      if (t != null) setState(() => breakfastTime = t);
+                    },
                   ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children: _computeNotificationTimes().map((t) {
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          t,
-                          style: TextStyle(
-                            color: primary,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      );
-                    }).toList(),
+                  const Divider(height: 1),
+                  _selectableMealTimeTile(
+                    emoji: '☀️',
+                    label: isAr ? 'الغداء' : 'Lunch',
+                    time: lunchTime,
+                    isSelected: isLunchSelected,
+                    primary: primary,
+                    isDark: isDark,
+                    onToggle: (val) =>
+                        setState(() => isLunchSelected = val ?? false),
+                    onTimeTap: () async {
+                      final t = await showTimePicker(
+                          context: context, initialTime: lunchTime);
+                      if (t != null) setState(() => lunchTime = t);
+                    },
+                  ),
+                  const Divider(height: 1),
+                  _selectableMealTimeTile(
+                    emoji: '🌙',
+                    label: isAr ? 'العشاء' : 'Dinner',
+                    time: dinnerTime,
+                    isSelected: isDinnerSelected,
+                    primary: primary,
+                    isDark: isDark,
+                    onToggle: (val) =>
+                        setState(() => isDinnerSelected = val ?? false),
+                    onTimeTap: () async {
+                      final t = await showTimePicker(
+                          context: context, initialTime: dinnerTime);
+                      if (t != null) setState(() => dinnerTime = t);
+                    },
                   ),
                 ],
               ),
             ),
           ] else ...[
-            // وقت يدوي
             _sectionTitle(
               isEveryXHours
-                  ? (isAr ? 'وقت البداية' : 'Start time')
-                  : (isAr ? 'المواعيد اليدوية' : 'Manual times'),
+                  ? (isAr ? 'وقت بداية الجرعة الأولى' : 'Start time')
+                  : (isAr ? 'تحديد مواعيد الجرعات' : 'Dose Times'),
               isDark,
+              subtitle: isEveryXHours
+                  ? null
+                  : (isAr
+                      ? 'حدد وقت كل جرعة يدوياً'
+                      : 'Set time for each dose'),
             ),
             const SizedBox(height: 12),
             _buildCard(
@@ -925,91 +967,89 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                 children: [
                   ...List.generate(
                     isEveryXHours ? 1 : timesPerDay,
-                    (i) => Column(
-                      children: [
-                        if (i > 0) const Divider(height: 1),
-                        _mealTimeTile(
-                          emoji: ['☀️', '🌤️', '🌙', '💊', '💊', '💊'][i],
-                          label: isEveryXHours
-                              ? (isAr ? 'وقت البداية' : 'Start time')
-                              : (isAr
-                                  ? 'الجرعة ${i + 1}'
-                                  : 'Dose ${i + 1}'),
-                          time: i < manualTimes.length
-                              ? manualTimes[i]
-                              : const TimeOfDay(hour: 8, minute: 0),
-                          primary: primary,
-                          isDark: isDark,
-                          onTap: () async {
-                            final current = i < manualTimes.length
-                                ? manualTimes[i]
-                                : const TimeOfDay(hour: 8, minute: 0);
-                            final t = await showTimePicker(
-                                context: context, initialTime: current);
-                            if (t != null) {
-                              setState(() {
-                                while (manualTimes.length <= i) {
-                                  manualTimes.add(const TimeOfDay(hour: 8, minute: 0));
-                                }
-                                manualTimes[i] = t;
-                              });
-                            }
-                          },
-                        ),
-                      ],
-                    ),
+                    (i) {
+                      while (manualTimes.length <= i) {
+                        manualTimes.add(
+                            TimeOfDay(hour: (8 + (i * 4)) % 24, minute: 0));
+                      }
+                      return Column(
+                        children: [
+                          if (i > 0) const Divider(height: 1),
+                          _simpleTimeTile(
+                            emoji: '⏰',
+                            label: isEveryXHours
+                                ? (isAr ? 'وقت البداية' : 'Start time')
+                                : (isAr ? 'الجرعة ${i + 1}' : 'Dose ${i + 1}'),
+                            time: manualTimes[i],
+                            primary: primary,
+                            isDark: isDark,
+                            onTap: () async {
+                              final t = await showTimePicker(
+                                  context: context,
+                                  initialTime: manualTimes[i]);
+                              if (t != null) {
+                                setState(() {
+                                  manualTimes[i] = t;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 ],
               ),
             ),
-            if (isEveryXHours) ...[
-              const SizedBox(height: 16),
-              _buildCard(
-                isDark: isDark,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          ],
+          const SizedBox(height: 16),
+          // كارت معاينة أوقات التنبيه النهائية
+          _buildCard(
+            isDark: isDark,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.notifications_active_rounded,
-                            color: primary, size: 20),
-                        const SizedBox(width: 8),
-                        Text(
-                          isAr ? 'مواعيد الإشعارات' : 'Notification times',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: isDark ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: _computeNotificationTimes().map((t) {
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: primary.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            t,
-                            style: TextStyle(
-                              color: primary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                    Icon(Icons.notifications_active_rounded,
+                        color: primary, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      isAr
+                          ? 'مواعيد التنبيهات التي ستصلك'
+                          : 'Notification times',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: _computeNotificationTimes().map((t) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: primary.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        t,
+                        style: TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
@@ -1017,6 +1057,114 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
   }
 
   // ===== Helpers =====
+
+  Widget _selectableMealTimeTile({
+    required String emoji,
+    required String label,
+    required TimeOfDay time,
+    required bool isSelected,
+    required Color primary,
+    required bool isDark,
+    required ValueChanged<bool?> onToggle,
+    required VoidCallback onTimeTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        children: [
+          Checkbox(
+            value: isSelected,
+            activeColor: primary,
+            onChanged: onToggle,
+          ),
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected
+                  ? (isDark ? Colors.white : Colors.black87)
+                  : (isDark ? Colors.white38 : Colors.black38),
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          const Spacer(),
+          GestureDetector(
+            onTap: isSelected ? onTimeTap : null,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? primary.withOpacity(0.12)
+                    : (isDark ? Colors.white10 : Colors.grey.shade200),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                time.format(context),
+                style: TextStyle(
+                  color: isSelected
+                      ? primary
+                      : (isDark ? Colors.white38 : Colors.black38),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _simpleTimeTile({
+    required String emoji,
+    required String label,
+    required TimeOfDay time,
+    required Color primary,
+    required bool isDark,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 22)),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: primary.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                time.format(context),
+                style: TextStyle(
+                  color: primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded,
+                color: isDark ? Colors.white38 : Colors.black26, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _sectionTitle(String title, bool isDark, {String? subtitle}) {
     return Column(
@@ -1079,8 +1227,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
       style: TextStyle(color: isDark ? Colors.white : Colors.black),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(
-            color: isDark ? Colors.white30 : Colors.black26),
+        hintStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black26),
         prefixIcon: Icon(icon, color: primary, size: 22),
         filled: true,
         fillColor:
@@ -1117,8 +1264,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
               color: selected
                   ? Colors.white
                   : (isDark ? Colors.white60 : Colors.black54),
-              fontWeight:
-                  selected ? FontWeight.bold : FontWeight.normal,
+              fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               fontSize: 13,
             ),
           ),
@@ -1148,7 +1294,8 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
           border: selected
               ? null
               : Border.all(
-                  color: isDark ? Colors.white10 : Colors.black.withOpacity(0.06)),
+                  color:
+                      isDark ? Colors.white10 : Colors.black.withOpacity(0.06)),
         ),
         child: Column(
           children: [
@@ -1161,8 +1308,7 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
                     ? Colors.white
                     : (isDark ? Colors.white60 : Colors.black54),
                 fontSize: 11,
-                fontWeight:
-                    selected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
               ),
               textAlign: TextAlign.center,
             ),
@@ -1195,56 +1341,6 @@ class _AddMedicineScreenState extends State<AddMedicineScreen> {
               ? Colors.white
               : (isDark ? Colors.white60 : Colors.black54),
           size: 22,
-        ),
-      ),
-    );
-  }
-
-  Widget _mealTimeTile({
-    required String emoji,
-    required String label,
-    required TimeOfDay time,
-    required Color primary,
-    required bool isDark,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 22)),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: primary.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                time.format(context),
-                style: TextStyle(
-                  color: primary,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            Icon(Icons.chevron_right_rounded,
-                color: isDark ? Colors.white38 : Colors.black26, size: 20),
-          ],
         ),
       ),
     );
