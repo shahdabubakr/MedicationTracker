@@ -35,3 +35,11 @@
 1. Clone the repository:
    ```bash
    git clone [https://github.com/shahdabubakr/MedicationTracker.git](https://github.com/shahdabubakr/MedicationTracker.git)
+2. Install dependencies:
+   flutter pub get
+3. Run the application:
+   flutter run
+## Hardware Firmware
+1.Open the ESP32 .ino firmware file in Arduino IDE or PlatformIO.
+2.Install the required libraries: WiFiManager, ArduinoJson, LiquidCrystal_I2C, RTClib, and Stepper.
+3.Flash to an ESP32 Dev Module and connect to the ECHO-Setup Wi-Fi access point on first boot to pair with the mobile app.
